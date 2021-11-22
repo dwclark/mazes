@@ -1,22 +1,25 @@
 import groovy.transform.Immutable;
 
-@Immutable
 public class Cell {
-    public static final Cell WALL = new Cell('#');
-    public static final Cell EMPTY = new Cell('.');
-    public static final Cell START = new Cell('@');
-    public static final Cell GOAL = new Cell('X')
+    static final Map<String,Cell> cache = [:]
     
-    String id;
+    static final Set<String> WALLS = (('A'..'Z') as Set) + '#'
+    static final Set<String> GOALS = ('a'..'z') as Set
+    static final Set<String> PASSABLE = GOALS + '.' + '@'
+
+    public static Cell parse(String s) {
+        return cache.computeIfAbsent(s, { k -> return new Cell(k) })
+    }
     
+    public Cell(final String id) { this.id = id }
+    @Override public boolean equals(Object o) { return (o instanceof Cell) && id == ((Cell) o).id }
+    @Override public int hashCode() { return id.hashCode() }
     @Override public String toString() { return id; }
     
-    public static Cell parse(String s) {
-        switch(s) {
-            case '#': return WALL;
-            case '.': return EMPTY;
-            case '@': return START;
-            case 'X': return GOAL;
-        }
-    }
+    final String id;
+    
+    public boolean isWall() { return WALLS.contains(id) }
+    public boolean isGoal() { return GOALS.contains(id) }
+    public boolean isPassable() { return PASSABLE.contains(id) }
+    public boolean isStart() { return id == '@' }
 }

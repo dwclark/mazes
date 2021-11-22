@@ -1,11 +1,17 @@
 import groovy.transform.Immutable
 
 abstract class Maze {
-  
-    abstract Cell loc(int vertical, int horizontal)
-    abstract void loc(int vertical, int horiztonal, Cell c)
+
+    static Location newLoc(int vertical, int horizontal) { return new Location(vertical, horizontal); }
+
     abstract int getVertical()
     abstract int getHorizontal()
+    abstract Cell loc(int vertical, int horizontal)
+    abstract void loc(int vertical, int horiztonal, Cell c)
+
+    Cell loc(Location val) { return loc(val.v, val.h) }
+    Location start
+    Location goal
 
     String toString() {
         StringBuilder sb = new StringBuilder(vertical * horizontal + vertical)
@@ -20,16 +26,36 @@ abstract class Maze {
         return sb.toString()
     }
 
+    String toString(Set<Location> solution) {
+        StringBuilder sb = new StringBuilder(vertical * horizontal + vertical)
+        for(int v = 0; v < vertical; ++v) {
+            for(int h = 0; h < horizontal; ++h) {
+                Location location = newLoc(v, h)
+                Cell tmp = loc(v, h);
+                if(solution.contains(location) && !tmp.start && !tmp.goal) sb.append("*")
+                else sb.append(tmp.id)
+            }
+
+            sb.append("\n")
+        }
+
+        return sb.toString()
+    }
+
+    List<Location> successors(Location val) {
+        return successors(val.v, val.h)
+    }
+
     List<Location> successors(int v, int h) {
         List<Location> ret = new ArrayList<>();
-        if(v-1 != 0 && loc(v-1, h) != Cell.WALL)
-            ret << new Location(v-1, h)
-        if(v+1 != vertical && loc(v+1, h) != Cell.WALL)
-            ret << new Location(v+1, h)
-        if(h-1 != 0 && loc(v, h-1) != Cell.WALL)
-            ret << new Location(v, h-1)
-        if(h+1 != horizontal && loc(v, h+1) != Cell.WALL)
-            ret << new Location(v, h+1)
+        if(v-1 != 0 && !loc(v-1, h).wall)
+            ret << newLoc(v-1, h)
+        if(v+1 != vertical && !loc(v+1, h).wall)
+            ret << newLoc(v+1, h)
+        if(h-1 != 0 && !loc(v, h-1).wall)
+            ret << newLoc(v, h-1)
+        if(h+1 != horizontal && !loc(v, h+1).wall)
+            ret << newLoc(v, h+1)
         return ret;
     }
 
@@ -70,7 +96,6 @@ abstract class Maze {
 
     static class Grid extends Maze {
         final Cell[][] theMaze
-        Location start, goal
         Grid(int v, int h) {
             this.theMaze = new Cell[v][h]
         }
@@ -80,8 +105,8 @@ abstract class Maze {
         }
 
         void loc(int v, int h, Cell c) {
-            if(c == Cell.START) start = new Location(v, h)
-            else if(c == Cell.GOAL) goal = new Location(v, h)
+            if(c.start) start = newLoc(v, h)
+            else if(c.goal) goal = newLoc(v, h)
             
             theMaze[v][h] = c
         }
@@ -92,10 +117,9 @@ abstract class Maze {
 
     static class MazeMap extends Maze {
         final Map<Location,Cell> theMaze
-        Location start, goal
         final int vertical
         final int horizontal
-
+        
         private MazeMap(final int v, final int h) {
             this.vertical = v;
             this.horizontal = h;
@@ -103,13 +127,13 @@ abstract class Maze {
         }
         
         Cell loc(int v, int h) {
-            return theMaze[new Location(v, h)]
+            return theMaze[newLoc(v, h)]
         }
 
         void loc(int v, int h, Cell c) {
-            def location = new Location(v, h)
-            if(c == Cell.START) start = location
-            else if(c == Cell.GOAL) goal = location
+            def location = newLoc(v, h)
+            if(c.start) start = location
+            else if(c.goal) goal = location
             theMaze[location] = c
         }
     }
