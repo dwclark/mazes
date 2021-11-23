@@ -1,1 +1,1 @@
-enum Storage { GRID, MAP };
+enum Storage { GRID, SPARSE };

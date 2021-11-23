@@ -1,9 +1,15 @@
 import groovy.transform.Immutable;
 
 public class Cell {
-    static final Map<String,Cell> cache = [:]
+    private static final Map<String,Cell> cache = [:]
     
-    static final Set<String> WALLS = (('A'..'Z') as Set) + '#'
+    static final Cell NONE = parse('')
+    static final Cell EMPTY = parse('.')
+    static final Cell PERMANENT_WALL = Cell.parse('#')
+
+    static final Set<String> TMP_WALLS = ('A'..'Z') as Set
+    static final Set<String> PERMANENT_WALLS = Set.of('#')
+    static final Set<String> WALLS = TMP_WALLS + PERMANENT_WALLS
     static final Set<String> GOALS = ('a'..'z') as Set
     static final Set<String> PASSABLE = GOALS + '.' + '@'
 
@@ -19,6 +25,7 @@ public class Cell {
     final String id;
     
     public boolean isWall() { return WALLS.contains(id) }
+    public boolean isPermanentWall() { return id == '#' }
     public boolean isGoal() { return GOALS.contains(id) }
     public boolean isPassable() { return PASSABLE.contains(id) }
     public boolean isStart() { return id == '@' }

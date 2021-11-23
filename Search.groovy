@@ -77,21 +77,26 @@ abstract class Search {
         return null;
     }
 
-    static <T,F> Map<T,F> explore(T initial, Closure<F> foundAt, Closure<List<T>> successors) {
-        Deque<T> frontier = new ArrayDeque<>()
-        frontier.offer(initial);
-        Map<T,F> explored = [ (initial): foundAt(initial) ]
+    static <T> List<Node<T>> breadthFirstAll(T initial, Predicate<T> goal, Closure<List<T>> successors) {
+        List<Node<T>> ret = []
+        Deque<Node<T>> frontier = new ArrayDeque<>()
+        frontier.offer(new Node(initial, null))
+        Set<T> explored = new HashSet<>(frontier)
 
         while(!frontier.isEmpty()) {
-            T current = frontier.poll()
-            successors(current).each { child ->
-                if(!explored.containsKey(child)) {
-                    explored[child] = foundAt(child);
-                    frontier.offer(child);
+            Node<T> current = frontier.poll()
+            if(goal.test(current.state))
+                ret.add(current)
+
+            successors(current.state).each { child ->
+                if(!explored.contains(child)) {
+                    explored.add(child);
+                    frontier.offer(new Node(child, current))
                 }
             }
         }
 
-        return explored;
+        return ret;
     }
 }
+
