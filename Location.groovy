@@ -1,3 +1,6 @@
+import groovy.transform.CompileStatic
+
+@CompileStatic
 class Location {
     public static final Location NOWHERE = new Location(-1,-1)
     public static final Location loc(int v, int h) { return new Location(v, h); }

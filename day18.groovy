@@ -4,57 +4,93 @@ import static Cell.*
 import static Search.*
 import static Location.*
 
-//OK, I can solve smallish ones. Need to reduce number of bfs. Should be able to explore all paths
-//from starting point, extract the paths to each goal, then branch using each of the goals as a
-//new starting point
-static void paths(Maze maze, int maxPath,
-                  LinkedHashMap<String,List<Location>> path,
-                  List<LinkedHashMap<String,List<Location>>> found) {
+class Solution {
+    LinkedHashMap<String,List<Location>> steps
+    int count
 
-    if(path.size() == maxPath) {
-        found.add(path);
+    Solution(LinkedHashMap<String,List<Location>> steps, int count) {
+        this.steps = steps
+        this.count = count
+    }
+    Solution() { this([:], 0) }
+    
+    Solution(Solution rhs) { this(new LinkedHashMap<>(rhs.steps), rhs.count) }
+
+    static Solution max() { return new Solution([:], Integer.MAX_VALUE) }
+
+    Solution add(String key, List<Location> list) {
+        return new Solution(steps + [ (key): list ], count + (list.size() - 1))
+    }
+
+    void replace(Solution rhs) {
+        steps = rhs.steps
+        count = rhs.count
+    }
+
+    boolean inRange(Solution rhs, List<Location> step) {
+        return (count + (step.size() - 1)) < rhs.count
+    }
+
+    int getPathCount() {
+        return steps.size()
+    }
+
+    @Override String toString() {
+        return "count: ${count}, steps: ${steps.keySet()}"
+    }
+}
+
+static boolean hasSubPath(Maze m, List<Location> locs) {
+    for(int i = 1; i < (locs.size() - 1); ++i) {
+        if(m[locs[i]].goal) {
+            return true
+        }
+    }
+
+    return false
+}
+
+static void paths(Maze maze, int maxPath, String startAt,
+                  Solution current, Solution shortest) {
+
+    if(current.pathCount == maxPath) {
+        shortest.replace(current)
+        println shortest
         return
     }
     
-    Map<Location,Cell> all = explore(maze.start, maze.&getAt, maze.&successors)
-    Map<Location,Cell> newGoals = all.findAll { loc, cell -> cell.goal && loc != maze.start }
+    List<Search.Node<Location>> all = breadthFirstAll(maze.start, { val -> maze[val].goal }, maze.&successors)
+    if(!all) {
+        return
+    }
 
-    newGoals.each { loc, cell ->
-        Maze newMaze = maze.transform([:], maze.start, loc)
-        Search.Node<Location> node = breadthFirst(newMaze.start, newMaze.&atGoal, newMaze.&successors)
-        if(node != null) {
-            String strKey = "${newMaze[newMaze.start].id},${newMaze[newMaze.goal].id}"
-            LinkedHashMap<String,List<String>> newPath = path + [(strKey): node.toPath()]
-            Location matchingDoor = newMaze.whereIs(Cell.parse(cell.id.toUpperCase()))
-            Map subs = [(matchingDoor): EMPTY, (newMaze.start): EMPTY]
-            paths(newMaze.transform(subs, newMaze.goal, NOWHERE), maxPath, newPath, found)
-        }
+    //prune away paths with sub paths, sort to use heuristic of shortest first is better
+    List<List<Location>> pruned = all.collect { n -> n.toPath() }
+        .findAll { list -> !hasSubPath(maze, list) && current.inRange(shortest, list) }
+        .sort { l1, l2 -> l1.size() <=> l2.size() }
+
+    if(!pruned) {
+        return
+    }
+    
+    pruned.each { step ->
+        Location newGoal = step.last()
+        String newStartAt = maze[newGoal].id
+        String strKey = "${startAt},${maze[newGoal].id}"
+        Location openedDoor = maze.whereIs(Cell.parse(maze[newGoal].id.toUpperCase()))
+        Map subs = [(openedDoor): EMPTY, (maze.start): EMPTY, (newGoal): EMPTY]
+        Maze newMaze = maze.transform(subs, newGoal, NOWHERE)
+        paths(newMaze, maxPath, newStartAt, current.add(strKey, step), shortest)
     }
 }
 
-static List<LinkedHashMap<String,List<Location>>> fullPaths(String strMaze) {
+static Solution findSolution(String strMaze) {
     final Maze maze = parse(strMaze.split('\n') as List, SPARSE)
     final Location startLoc = maze.whereIs(Cell.parse('@'))
     final int maxPath = maze.matchingCells(Cell.&isGoal).size()
-    final List<LinkedHashMap<String,List<Location>>> foundPaths = []
-    paths(maze.transform([:], startLoc, NOWHERE), maxPath, [:], foundPaths)
-    return foundPaths
-}
-
-static int pathLength(LinkedHashMap<String,List<Location>> path) {
-    int ret = 0
-    path.each { key, list -> ret += (list.size() - 1) }
-    return ret
-}
-
-static int minLength(List<LinkedHashMap<String,List<Location>>> found) {
-    int theMin = Integer.MAX_VALUE
-    found.each { map ->
-        int currentSize = pathLength(map)
-        if(currentSize < theMin) theMin = currentSize
-    }
-        
-    return theMin
+    final Solution s = Solution.max()
+    paths(maze.transform([:], startLoc, NOWHERE), maxPath, '@', new Solution(), s)
+    return s
 }
 
 String one = """
@@ -63,9 +99,9 @@ String one = """
 #########
 """.trim()
 
-println minLength(fullPaths(one))
+println findSolution(one)
 
-String two = """
+/*String two = """
 ########################
 #f.D.E.e.C.b.A.@.a.B.c.#
 ######################.#
@@ -73,7 +109,7 @@ String two = """
 ########################
 """.trim()
 
-println minLength(fullPaths(two))
+println findSolution(two)
 
 String three = """
 ########################
@@ -83,9 +119,9 @@ String three = """
 ########################
 """.trim()
 
-println minLength(fullPaths(three))
+println findSolution(three)*/
 
-String four ="""
+/*String four ="""
 #################
 #i.G..c...e..H.p#
 ########.########
@@ -97,5 +133,16 @@ String four ="""
 #################
 """.trim()
 
-println minLength(fullPaths(four))
+println findSolution(four)*/
 
+/*String five = """
+########################
+#@..............ac.GI.b#
+###d#e#f################
+###A#B#C################
+###g#h#i################
+########################
+""".trim()
+
+println findSolution(five)
+*/
