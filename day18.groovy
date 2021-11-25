@@ -44,7 +44,7 @@ class KeyedLocation {
 }
 
 @CompileStatic
-class KeyGoal implements Predicate<KeyedLocation> {
+class KeyGoal implements Predicate<Long> {
     final int toMatch;
     final Maze maze;
 
@@ -59,10 +59,13 @@ class KeyGoal implements Predicate<KeyedLocation> {
         toMatch = tmp
     }
 
-    public boolean test(KeyedLocation kl) {
-        Cell cell = maze[kl.location]
+    public boolean test(Long o) {
+        long val = o.longValue()
+        Location location = KeySuccessors.decodeLocation(val)
+        int keys = KeySuccessors.decodeKeys(val)
+        Cell cell = maze[location]
         if(cell.goal) {
-            int newKey = kl.keys | KeyedLocation.toKey(cell)
+            int newKey = keys | KeyedLocation.toKey(cell)
             return newKey == toMatch
         }
 
@@ -80,31 +83,50 @@ class KeySuccessors {
         this.maze = maze
     }
 
+    static Long encode(Location location, int keys) {
+        long ret = (long) location.v
+        ret |= ((long) location.h << 16)
+        ret |= ((long) keys << 32)
+        return ret
+    }
+
+    static Location decodeLocation(long val) {
+        int vertical = (int) (val & 0xFFFF)
+        int horizontal = (int) ((val >> 16) & 0xFFFF)
+        return new Location(vertical, horizontal)
+    }
+
+    static int decodeKeys(long val) {
+        return (val >> 32) & 0xFFFF_FFFF
+    }
+
     static boolean canOpen(int keys, Cell door) {
         return (keys & (1 << ((door.id as char as int) - DOOR_FLOOR))) != 0
     }
 
-    public void addIfPossible(List<KeyedLocation> list, Location proposed, int keys) {
+    public void addIfPossible(List<Long> list, Location proposed, int keys) {
         Cell cell = maze[proposed]
         if(cell.passable || (cell.door && canOpen(keys, cell)))
-            list.add(new KeyedLocation(proposed, keys))
+            list.add(encode(proposed, keys))
     }
     
-    public List<KeyedLocation> call(KeyedLocation current) {
-        List<KeyedLocation> ret = []
-        Cell cell = maze[current.location]
-        int keys = current.keys | (cell.goal ? KeyedLocation.toKey(cell) : 0)
-        addIfPossible(ret, current.location.up(), keys)
-        addIfPossible(ret, current.location.down(), keys)
-        addIfPossible(ret, current.location.left(), keys)
-        addIfPossible(ret, current.location.right(), keys)
+    public List<Long> call(Long current) {
+        List<Long> ret = []
+        long val = current.longValue()
+        Location location = decodeLocation(val)
+        Cell cell = maze[location]
+        int keys = decodeKeys(val) | (cell.goal ? KeyedLocation.toKey(cell) : 0)
+        addIfPossible(ret, location.up(), keys)
+        addIfPossible(ret, location.down(), keys)
+        addIfPossible(ret, location.left(), keys)
+        addIfPossible(ret, location.right(), keys)
         return ret
     }
 }
 
 static int solution(String str) {
     def m = parse(str.split('\n') as List, SPARSE)
-    def start = KeyedLocation.from(m.whereIs(Cell.parse('@')))
+    def start = KeySuccessors.encode(m.whereIs(Cell.parse('@')), 0)
     def pred = new KeyGoal(m)
     def successors = new KeySuccessors(m)
     def solution = breadthFirst(start, pred, successors.&call)
