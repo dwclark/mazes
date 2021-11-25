@@ -1,96 +1,111 @@
 import static Maze.*
 import static Storage.*
-import static Cell.*
 import static Search.*
 import static Location.*
+import groovy.transform.CompileStatic
+import java.util.function.Predicate
 
-class Solution {
-    LinkedHashMap<String,List<Location>> steps
-    int count
-
-    Solution(LinkedHashMap<String,List<Location>> steps, int count) {
-        this.steps = steps
-        this.count = count
-    }
-    Solution() { this([:], 0) }
+class KeyedLocation {
+    static final int KEY_FLOOR = 'a' as char as int
     
-    Solution(Solution rhs) { this(new LinkedHashMap<>(rhs.steps), rhs.count) }
-
-    static Solution max() { return new Solution([:], Integer.MAX_VALUE) }
-
-    Solution add(String key, List<Location> list) {
-        return new Solution(steps + [ (key): list ], count + (list.size() - 1))
+    final Location location
+    final int keys
+    
+    KeyedLocation(int v, int h, int keys) {
+        this(loc(v,h), keys)
     }
 
-    void replace(Solution rhs) {
-        steps = rhs.steps
-        count = rhs.count
+    KeyedLocation(Location location, int keys) {
+        this.location = location
+        this.keys = keys
     }
+    
+    @Override int hashCode() { return 31 * location.hashCode() + keys }
 
-    boolean inRange(Solution rhs, List<Location> step) {
-        return (count + (step.size() - 1)) < rhs.count
-    }
-
-    int getPathCount() {
-        return steps.size()
-    }
-
-    @Override String toString() {
-        return "count: ${count}, steps: ${steps.keySet()}"
-    }
-}
-
-static boolean hasSubPath(Maze m, List<Location> locs) {
-    for(int i = 1; i < (locs.size() - 1); ++i) {
-        if(m[locs[i]].goal) {
-            return true
+    @Override boolean equals(Object o) {
+        if(!(o instanceof KeyedLocation)) {
+            return false
         }
+        
+        final KeyedLocation rhs = (KeyedLocation) o
+        return location == rhs.location && keys == rhs.keys
     }
 
-    return false
-}
+    @Override String toString() { return "($location,$keys)" }
 
-static void paths(Maze maze, int maxPath, String startAt,
-                  Solution current, Solution shortest) {
-
-    if(current.pathCount == maxPath) {
-        shortest.replace(current)
-        println shortest
-        return
-    }
-    
-    List<Search.Node<Location>> all = breadthFirstAll(maze.start, { val -> maze[val].goal }, maze.&successors)
-    if(!all) {
-        return
+    static int toKey(Cell cell) {
+        return 1 << ((cell.id[0] as char as int) - KEY_FLOOR);
     }
 
-    //prune away paths with sub paths, sort to use heuristic of shortest first is better
-    List<List<Location>> pruned = all.collect { n -> n.toPath() }
-        .findAll { list -> !hasSubPath(maze, list) && current.inRange(shortest, list) }
-        .sort { l1, l2 -> l1.size() <=> l2.size() }
-
-    if(!pruned) {
-        return
-    }
-    
-    pruned.each { step ->
-        Location newGoal = step.last()
-        String newStartAt = maze[newGoal].id
-        String strKey = "${startAt},${maze[newGoal].id}"
-        Location openedDoor = maze.whereIs(Cell.parse(maze[newGoal].id.toUpperCase()))
-        Map subs = [(openedDoor): EMPTY, (maze.start): EMPTY, (newGoal): EMPTY]
-        Maze newMaze = maze.transform(subs, newGoal, NOWHERE)
-        paths(newMaze, maxPath, newStartAt, current.add(strKey, step), shortest)
+    static KeyedLocation from(Location location) {
+        return new KeyedLocation(location, 0)
     }
 }
 
-static Solution findSolution(String strMaze) {
-    final Maze maze = parse(strMaze.split('\n') as List, SPARSE)
-    final Location startLoc = maze.whereIs(Cell.parse('@'))
-    final int maxPath = maze.matchingCells(Cell.&isGoal).size()
-    final Solution s = Solution.max()
-    paths(maze.transform([:], startLoc, NOWHERE), maxPath, '@', new Solution(), s)
-    return s
+class KeyGoal implements Predicate<KeyedLocation> {
+    final int toMatch;
+    final Maze maze;
+
+    public KeyGoal(Maze maze) {
+        this.maze = maze
+        
+        int tmp = 0;
+        for(Cell cell in maze.matchingCells({ it.goal })) {
+            tmp |= KeyedLocation.toKey(cell)
+        }
+        
+        toMatch = tmp
+    }
+
+    public boolean test(KeyedLocation kl) {
+        Cell cell = maze[kl.location]
+        if(cell.goal) {
+            int newKey = kl.keys | KeyedLocation.toKey(cell)
+            return newKey == toMatch
+        }
+
+        return false
+    }
+}
+
+class KeySuccessors {
+    static final int DOOR_FLOOR = 'A' as char as int
+    
+    final Maze maze
+
+    public KeySuccessors(Maze maze) {
+        this.maze = maze
+    }
+
+    static boolean canOpen(int keys, Cell door) {
+        return (keys & (1 << ((door.id as char as int) - DOOR_FLOOR))) != 0
+    }
+
+    public void addIfPossible(List<KeyedLocation> list, Location proposed, int keys) {
+        Cell cell = maze[proposed]
+        if(cell.passable || (cell.door && canOpen(keys, cell)))
+            list.add(new KeyedLocation(proposed, keys))
+    }
+    
+    public List<KeyedLocation> call(KeyedLocation current) {
+        List<KeyedLocation> ret = []
+        Cell cell = maze[current.location]
+        int keys = current.keys | (cell.goal ? KeyedLocation.toKey(cell) : 0)
+        addIfPossible(ret, current.location.up(), keys)
+        addIfPossible(ret, current.location.down(), keys)
+        addIfPossible(ret, current.location.left(), keys)
+        addIfPossible(ret, current.location.right(), keys)
+        return ret
+    }
+}
+
+static int solution(String str) {
+    def m = parse(str.split('\n') as List, SPARSE)
+    def start = KeyedLocation.from(m.whereIs(Cell.parse('@')))
+    def pred = new KeyGoal(m)
+    def successors = new KeySuccessors(m)
+    def solution = breadthFirst(start, pred, successors.&call)
+    return solution.toPath().size() - 1
 }
 
 String one = """
@@ -99,9 +114,9 @@ String one = """
 #########
 """.trim()
 
-println findSolution(one)
+assert solution(one) == 8
 
-/*String two = """
+String two = """
 ########################
 #f.D.E.e.C.b.A.@.a.B.c.#
 ######################.#
@@ -109,7 +124,7 @@ println findSolution(one)
 ########################
 """.trim()
 
-println findSolution(two)
+assert solution(two) == 86
 
 String three = """
 ########################
@@ -119,9 +134,9 @@ String three = """
 ########################
 """.trim()
 
-println findSolution(three)*/
+assert solution(three) == 132
 
-/*String four ="""
+String four ="""
 #################
 #i.G..c...e..H.p#
 ########.########
@@ -133,9 +148,9 @@ println findSolution(three)*/
 #################
 """.trim()
 
-println findSolution(four)*/
+assert solution(four) == 136
 
-/*String five = """
+String five = """
 ########################
 #@..............ac.GI.b#
 ###d#e#f################
@@ -144,5 +159,7 @@ println findSolution(four)*/
 ########################
 """.trim()
 
-println findSolution(five)
-*/
+assert solution(five) == 81
+
+assert solution(new File("18").text) == 5068
+

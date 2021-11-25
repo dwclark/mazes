@@ -18,6 +18,7 @@ mazes1.each { m ->
     assert m[loc(1,8)].goal
     assert m[loc(2,9)].wall
     assert m[loc(1,7)].passable
+    assert loc(1,1) == m.whereIs(Cell.parse('@'))
 
     def copy = m.transform([(loc(1,4)): Cell.parse('a'), (loc(1,6)): Cell.parse('A')], loc(1,8), loc(1,1))
     assert copy[loc(1,4)].goal

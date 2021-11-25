@@ -60,7 +60,7 @@ abstract class Search {
         Deque<Node<T>> frontier = new ArrayDeque<>()
         frontier.offer(new Node(initial, null))
         Set<T> explored = new HashSet<>(frontier)
-
+        
         while(!frontier.isEmpty()) {
             Node<T> current = frontier.poll()
             if(goal.test(current.state))
@@ -75,28 +75,6 @@ abstract class Search {
         }
 
         return null;
-    }
-
-    static <T> List<Node<T>> breadthFirstAll(T initial, Predicate<T> goal, Closure<List<T>> successors) {
-        List<Node<T>> ret = []
-        Deque<Node<T>> frontier = new ArrayDeque<>()
-        frontier.offer(new Node(initial, null))
-        Set<T> explored = new HashSet<>(frontier)
-
-        while(!frontier.isEmpty()) {
-            Node<T> current = frontier.poll()
-            if(goal.test(current.state))
-                ret.add(current)
-
-            successors(current.state).each { child ->
-                if(!explored.contains(child)) {
-                    explored.add(child);
-                    frontier.offer(new Node(child, current))
-                }
-            }
-        }
-
-        return ret;
     }
 }
 
