@@ -1,9 +1,10 @@
-import groovy.transform.Immutable
+import groovy.transform.CompileStatic
 import java.util.function.Predicate
 import static Location.*
 import static Storage.*
 import static Cell.*
 
+@CompileStatic
 abstract class Maze {
 
     static Location newLoc(int vertical, int horizontal) { return new Location(vertical, horizontal); }
@@ -71,7 +72,7 @@ abstract class Maze {
     float euclidean(Location val) {
         int hdist = goal.h - val.h
         int vdist = goal.v - val.v
-        return Math.sqrt(hdist**2 + vdist**2)
+        return Math.sqrt((double) (hdist**2 + vdist**2))
     }
     
     float manhattan(Location val) {
@@ -81,11 +82,11 @@ abstract class Maze {
     }
     
     static Maze parse(File file, Storage s) {
-        return parse(file.text, s)
+        return parse(file.readLines(), s)
     }
 
     static Map parse(List<String> strings) {
-        def list = strings.collect { str -> str.collect { sub -> Cell.parse(sub) } }
+        def list = strings.collect { String str -> str.collect { String sub -> Cell.parse(sub) } }
         def start, goal;
         list.eachWithIndex { subList, v ->
             subList.eachWithIndex { cell, h ->
@@ -97,9 +98,9 @@ abstract class Maze {
     static Maze parse(List<String> list, Storage s) {
         Map p = parse(list)
         if (s == GRID)
-            return new Grid(p.cells, p.start, p.goal)
+            return new Grid(p.cells as List, p.start as Location, p.goal as Location)
         else
-            return new Sparse(p.cells, p.start, p.goal)
+            return new Sparse(p.cells as List, p.start as Location, p.goal as Location)
     }
 
     static class Grid extends Maze {

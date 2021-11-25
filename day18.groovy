@@ -5,6 +5,7 @@ import static Location.*
 import groovy.transform.CompileStatic
 import java.util.function.Predicate
 
+@CompileStatic
 class KeyedLocation {
     static final int KEY_FLOOR = 'a' as char as int
     
@@ -42,6 +43,7 @@ class KeyedLocation {
     }
 }
 
+@CompileStatic
 class KeyGoal implements Predicate<KeyedLocation> {
     final int toMatch;
     final Maze maze;
@@ -68,6 +70,7 @@ class KeyGoal implements Predicate<KeyedLocation> {
     }
 }
 
+@CompileStatic
 class KeySuccessors {
     static final int DOOR_FLOOR = 'A' as char as int
     
@@ -161,5 +164,6 @@ String five = """
 
 assert solution(five) == 81
 
-assert solution(new File("18").text) == 5068
-
+Profile.printTime {
+    assert solution(new File("18").text) == 5068
+}

@@ -1,5 +1,6 @@
-import groovy.transform.Immutable;
+import groovy.transform.CompileStatic;
 
+@CompileStatic
 public class Cell {
     private static final Map<String,Cell> cache = [:]
     
