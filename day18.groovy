@@ -26,6 +26,17 @@ class KeyInfo {
 
         return tmp
     }
+
+    static String toString(int keys) {
+        String str = ""
+        ('a'..'z').eachWithIndex { String c, int i ->
+            if(((1 << i) & keys) != 0) {
+                str += c
+            }
+        }
+
+        return str;
+    }
 }
 
 @CompileStatic
@@ -211,6 +222,7 @@ class StateP2 {
 class Part2 implements Successors<StateP2>, Predicate<StateP2> {
     final Maze maze
     final int toMatch
+    int currentKeys;
     
     Part2(Maze maze) {
         this.maze = maze
@@ -231,6 +243,11 @@ class Part2 implements Successors<StateP2>, Predicate<StateP2> {
             if(c.goal) keys |= KeyInfo.toKey(c)
         }
 
+        if(currentKeys < keys) {
+            currentKeys = keys
+            println KeyInfo.toString(keys)
+        }
+        
         return keys
     }
     
@@ -299,3 +316,19 @@ String three_2 = """
 """.trim()
 
 println solutionp2(three_2)
+
+String four_2 = """
+#############
+#g#f.D#..h#l#
+#F###e#E###.#
+#dCba@#@BcIJ#
+#############
+#nK.L@#@G...#
+#M###N#H###.#
+#o#m..#i#jk.#
+#############
+""".trim()
+
+println solutionp2(four_2)
+
+//println solutionp2(new File("18_2").text)
