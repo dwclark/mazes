@@ -6,130 +6,99 @@ import groovy.transform.CompileStatic
 import java.util.function.Predicate
 
 @CompileStatic
-class KeyedLocation {
+class KeyInfo {
     static final int KEY_FLOOR = 'a' as char as int
-    
-    final Location location
-    final int keys
-    
-    KeyedLocation(int v, int h, int keys) {
-        this(loc(v,h), keys)
-    }
-
-    KeyedLocation(Location location, int keys) {
-        this.location = location
-        this.keys = keys
-    }
-    
-    @Override int hashCode() { return 31 * location.hashCode() + keys }
-
-    @Override boolean equals(Object o) {
-        if(!(o instanceof KeyedLocation)) {
-            return false
-        }
-        
-        final KeyedLocation rhs = (KeyedLocation) o
-        return location == rhs.location && keys == rhs.keys
-    }
-
-    @Override String toString() { return "($location,$keys)" }
-
-    static int toKey(Cell cell) {
-        return 1 << ((cell.id[0] as char as int) - KEY_FLOOR);
-    }
-
-    static KeyedLocation from(Location location) {
-        return new KeyedLocation(location, 0)
-    }
-}
-
-@CompileStatic
-class KeyGoal implements Predicate<Long> {
-    final int toMatch;
-    final Maze maze;
-
-    public KeyGoal(Maze maze) {
-        this.maze = maze
-        
-        int tmp = 0;
-        for(Cell cell in maze.matchingCells({ it.goal })) {
-            tmp |= KeyedLocation.toKey(cell)
-        }
-        
-        toMatch = tmp
-    }
-
-    public boolean test(Long o) {
-        long val = o.longValue()
-        Location location = KeySuccessors.decodeLocation(val)
-        int keys = KeySuccessors.decodeKeys(val)
-        Cell cell = maze[location]
-        if(cell.goal) {
-            int newKey = keys | KeyedLocation.toKey(cell)
-            return newKey == toMatch
-        }
-
-        return false
-    }
-}
-
-@CompileStatic
-class KeySuccessors {
     static final int DOOR_FLOOR = 'A' as char as int
     
-    final Maze maze
-
-    public KeySuccessors(Maze maze) {
-        this.maze = maze
-    }
-
-    static Long encode(Location location, int keys) {
-        long ret = (long) location.v
-        ret |= ((long) location.h << 16)
-        ret |= ((long) keys << 32)
-        return ret
-    }
-
-    static Location decodeLocation(long val) {
-        int vertical = (int) (val & 0xFFFF)
-        int horizontal = (int) ((val >> 16) & 0xFFFF)
-        return new Location(vertical, horizontal)
-    }
-
-    static int decodeKeys(long val) {
-        return (val >> 32) & 0xFFFF_FFFF
+    static int toKey(Cell cell) {
+        return 1 << ((cell.id[0] as char as int) - KEY_FLOOR);
     }
 
     static boolean canOpen(int keys, Cell door) {
         return (keys & (1 << ((door.id as char as int) - DOOR_FLOOR))) != 0
     }
 
-    public void addIfPossible(List<Long> list, Location proposed, int keys) {
-        Cell cell = maze[proposed]
-        if(cell.passable || (cell.door && canOpen(keys, cell)))
-            list.add(encode(proposed, keys))
+    static int fullMatch(Maze maze) {
+        int tmp = 0
+        for(Cell cell in maze.matchingCells({ it.goal })) {
+            tmp |= toKey(cell)
+        }
+
+        return tmp
+    }
+}
+
+@CompileStatic
+class Part1 implements Successors<Long>, Predicate<Long> {
+    
+    final int toMatch
+    final Maze maze
+
+    public Part1(Maze maze) {
+        this.maze = maze
+        this.toMatch = KeyInfo.fullMatch(maze)
+    }
+
+    static Long encode(int v, int h, int keys) {
+        long ret = (long) v
+        ret |= ((long) h << 16)
+        ret |= ((long) keys << 32)
+        return ret
+    }
+
+    static int decodeVertical(long val) {
+        return (int) (val & 0xFFFF)
+    }
+
+    static int decodeHorizontal(long val) {
+        return (int) ((val >> 16) & 0xFFFF)
+    }
+
+    static int decodeKeys(long val) {
+        return (val >> 32) & 0xFFFF_FFFF
+    }
+
+    public void addIfPossible(List<Long> list, int vertical, int horizontal, int keys) {
+        Cell cell = maze.at(vertical, horizontal)
+        if(cell.passable || (cell.door && KeyInfo.canOpen(keys, cell)))
+            list.add(encode(vertical, horizontal, keys))
     }
     
-    public List<Long> call(Long current) {
+    public List<Long> successors(Long current) {
         List<Long> ret = []
         long val = current.longValue()
-        Location location = decodeLocation(val)
-        Cell cell = maze[location]
-        int keys = decodeKeys(val) | (cell.goal ? KeyedLocation.toKey(cell) : 0)
-        addIfPossible(ret, location.up(), keys)
-        addIfPossible(ret, location.down(), keys)
-        addIfPossible(ret, location.left(), keys)
-        addIfPossible(ret, location.right(), keys)
+        int v = decodeVertical(val)
+        int h = decodeHorizontal(val)
+        Cell cell = maze.at(v, h)
+        int keys = decodeKeys(val) | (cell.goal ? KeyInfo.toKey(cell) : 0)
+        addIfPossible(ret, v+1, h, keys)
+        addIfPossible(ret, v-1, h, keys)
+        addIfPossible(ret, v, h-1, keys)
+        addIfPossible(ret, v, h+1, keys)
         return ret
+    }
+
+    public boolean test(Long o) {
+        long val = o.longValue()
+        int keys = decodeKeys(val)
+        int v = decodeVertical(val)
+        int h = decodeHorizontal(val)
+        Cell cell = maze.at(v, h)
+        if(cell.goal) {
+            int newKey = keys | KeyInfo.toKey(cell)
+            return newKey == toMatch
+        }
+        
+        return false
     }
 }
 
 static int solution(String str) {
     def m = parse(str.split('\n') as List, SPARSE)
-    def start = KeySuccessors.encode(m.whereIs(Cell.parse('@')), 0)
-    def pred = new KeyGoal(m)
-    def successors = new KeySuccessors(m)
-    def solution = breadthFirst(start, pred, successors.&call)
+    def location = m.whereIs(Cell.parse('@'))
+    def start = Part1.encode(location.v, location.h, 0)
+    def successors = new Part1(m)
+    def solution = breadthFirst(start, successors, successors)
     return solution.toPath().size() - 1
 }
 
@@ -186,6 +155,147 @@ String five = """
 
 assert solution(five) == 81
 
-Profile.printTime {
+/*Profile.printTime {
     assert solution(new File("18").text) == 5068
+}*/
+
+@CompileStatic
+class StateP2 {
+    final int keys
+    final byte[] positions
+
+    public static byte[] initLocations(List<Location> initial) {
+        byte[] ret = new byte[8]
+        initial.eachWithIndex { Location loc, int idx ->
+            ret[2*idx] = (byte) loc.v
+            ret[2*idx + 1] = (byte) loc.h
+        }
+
+        return ret
+    }
+    
+    StateP2(List<Location> initial) {
+        this(0, initLocations(initial))
+    }
+
+    StateP2(int keys, byte[] positions) {
+        this.keys = keys
+        this.positions = positions;
+    }
+
+    int vertical(int robot) { return (int) positions[robot*2] }
+    int horizontal(int robot) { return (int) positions[robot*2 + 1] }
+
+    StateP2 newState(int keys, int robot, int v, int h) {
+        byte[] newPositions = new byte[8]
+        System.arraycopy(positions, 0, newPositions, 0, 8)
+        newPositions[robot*2] = (byte) v
+        newPositions[robot*2 + 1] = (byte) h
+        return new StateP2(keys, newPositions)
+    }
+
+    @Override int hashCode() {
+        return 31 * keys + Arrays.hashCode(positions)
+    }
+    
+    @Override boolean equals(Object o) {
+        if(!(o instanceof StateP2)) return false
+        
+        StateP2 rhs = (StateP2) o
+        return ((keys == rhs.keys) &&
+                Arrays.equals(positions, rhs.positions))
+    }
 }
+
+@CompileStatic
+class Part2 implements Successors<StateP2>, Predicate<StateP2> {
+    final Maze maze
+    final int toMatch
+    
+    Part2(Maze maze) {
+        this.maze = maze
+        this.toMatch = KeyInfo.fullMatch(maze)
+    }
+
+    public void addIfPossible(List<StateP2> list, StateP2 current, int keys, int robot, int vertical, int horizontal) {
+        Cell cell = maze.at(vertical, horizontal)
+        if(cell.passable || (cell.door && KeyInfo.canOpen(keys, cell)))
+            list.add(current.newState(keys, robot, vertical, horizontal))
+    }
+
+
+    private int keyState(StateP2 s) {
+        int keys = s.keys
+        for(int i = 0; i < 4; ++i) {
+            Cell c = maze.at(s.vertical(i), s.horizontal(i))
+            if(c.goal) keys |= KeyInfo.toKey(c)
+        }
+
+        return keys
+    }
+    
+    public List<StateP2> successors(StateP2 s) {
+        List<StateP2> list = []
+        int keys = keyState(s)
+        for(int i = 0; i < 4; ++i) {
+            int v = s.vertical(i)
+            int h = s.horizontal(i)
+            addIfPossible(list, s, keys, i, v+1, h)
+            addIfPossible(list, s, keys, i, v-1, h)
+            addIfPossible(list, s, keys, i, v, h+1)
+            addIfPossible(list, s, keys, i, v, h-1)
+        }
+
+        return list
+    }
+
+    public boolean test(StateP2 s) {
+        return keyState(s) == toMatch
+    }
+}
+
+static int solutionp2(String str) {
+    def m = parse(str.split('\n') as List, SPARSE)
+    def locations = m.whereAreAll(Cell.parse('@'))
+    def start = new StateP2(locations)
+    def successors = new Part2(m)
+    def solution = breadthFirst(start, successors, successors)
+    return solution.toPath().size() - 1
+}
+
+//part 2
+String one_2 = """
+#######
+#a.#Cd#
+##@#@##
+#######
+##@#@##
+#cB#Ab#
+#######
+""".trim()
+
+println solutionp2(one_2)
+
+String two_2 = """
+###############
+#d.ABC.#.....a#
+######@#@######
+###############
+######@#@######
+#b.....#.....c#
+###############
+""".trim()
+
+println solutionp2(two_2)
+
+String three_2 = """
+#############
+#DcBa.#.GhKl#
+#.###@#@#I###
+#e#d#####j#k#
+###C#@#@###J#
+#fEbA.#.FgHi#
+#############
+""".trim()
+
+println solutionp2(three_2)

@@ -1,27 +1,38 @@
 import java.util.function.Predicate
+import java.util.function.BiPredicate
+import groovy.transform.CompileStatic
 
+@CompileStatic
 abstract class Search {
 
-    static class Node<T> implements Comparable<Node<T>> {
-        final T state
-        final T parent
+    interface Successors<T> {
+        List<T> successors(T val)
+    }
+
+    static class Node<E> implements Comparable<Node<E>> {
+        final E state
+        final Node<E> parent
         final float cost
         final float heuristic
 
-        public Node(T state, T parent) {
-            this(state, parent, 0.0f, 0.0f)
+        static <E> Node<E> create(E init) {
+            return new Node<>(init, null, 0.0f, 0.0f)
         }
 
-        public Node(T state, T parent, float cost, float heuristic) {
+        static <E> Node<E> create(E state, Node<E> parent) {
+            return new Node<>(state, parent, 0.0f, 0.0f)
+        }
+
+        private Node(E state, Node<E> parent, float cost, float heuristic) {
             this.state = state
             this.parent = parent
             this.cost = cost
             this.heuristic = heuristic
         }
 
-        public List<T> toPath() {
-            Node<T> node = this
-            List<T> ret = [node.state]
+        public List<E> toPath() {
+            Node<E> node = this
+            List<E> ret = [node.state]
             while(node.parent != null) {
                 node = node.parent
                 ret << node.state
@@ -30,25 +41,25 @@ abstract class Search {
             return ret.reverse()
         }
 
-        public int compareTo(Node<T> rhs) {
-            return Integer.compare(cost + heuristic, rhs.cost + rhs.heuristic)
+        public int compareTo(Node<E> rhs) {
+            return Float.compare(cost + heuristic, rhs.cost + rhs.heuristic)
         }
     }
 
-    static <T> Node<T> depthFirst(T initial, Predicate<T> goal, Closure<List<T>> successors) {
+    static <T> Node<T> depthFirst(T initial, Predicate<T> goal, Successors<T> s) {
         Deque<Node<T>> frontier = new ArrayDeque<>()
-        frontier.push(new Node(initial, null))
-        Set<T> explored = new HashSet<>(frontier)
+        frontier.push(Node.create(initial))
+        Set<T> explored = new HashSet<>([initial])
 
         while(!frontier.isEmpty()) {
             Node<T> current = frontier.pop()
             if(goal.test(current.state))
                 return current;
 
-            successors(current.state).each { child ->
+            for(T child : s.successors(current.state)) {
                 if(!explored.contains(child)) {
                     explored.add(child);
-                    frontier.push(new Node(child, current))
+                    frontier.push(Node.create(child, current))
                 }
             }
         }
@@ -56,20 +67,20 @@ abstract class Search {
         return null;
     }
 
-    static <T> Node<T> breadthFirst(T initial, Predicate<T> goal, Closure<List<T>> successors) {
+    static <T> Node<T> breadthFirst(T initial, Predicate<T> goal, Successors<T> s) {
         Deque<Node<T>> frontier = new ArrayDeque<>()
-        frontier.offer(new Node(initial, null))
-        Set<T> explored = new HashSet<>(frontier)
+        frontier.offer(Node.create(initial))
+        Set<T> explored = new HashSet<>([initial])
         
         while(!frontier.isEmpty()) {
             Node<T> current = frontier.poll()
             if(goal.test(current.state))
                 return current;
 
-            successors(current.state).each { child ->
+            for(T child : s.successors(current.state)) {
                 if(!explored.contains(child)) {
                     explored.add(child);
-                    frontier.offer(new Node(child, current))
+                    frontier.offer(Node.create(child, current))
                 }
             }
         }

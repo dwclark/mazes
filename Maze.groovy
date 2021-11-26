@@ -12,13 +12,17 @@ abstract class Maze {
     abstract int getVertical()
     abstract int getHorizontal()
     abstract Location whereIs(Cell c);
+    abstract Collection<Location> whereAreAll(Cell c);
     abstract Collection<Cell> matchingCells(Predicate<Cell> p)
     abstract Cell getAt(Location loc);
     abstract boolean wallAt(Location loc);
-    abstract Maze transform(Map<Location,Cell> replace, Location start, Location goal)
     abstract Location getStart()
     abstract Location getGoal()
 
+    Cell at(int v, int h) {
+        return getAt(new Location(v, h))
+    }
+    
     boolean atGoal(Location loc) { return loc == goal }
     
     boolean inRange(Location val) {
@@ -121,18 +125,6 @@ abstract class Maze {
                     theMaze[v][h] = cell } }
         }
 
-        Grid transform(Map<Location,Cell> replace, Location start, Location goal) {
-            Cell[][] copy = new Cell[theMaze.length][theMaze[0].length]
-            for(int v = 0; v < theMaze.length; ++v) {
-                for(int h = 0; h < theMaze[0].length; ++h) {
-                    copy[v][h] = theMaze[v][h]
-                }
-            }
-
-            replace.each { loc, cell -> copy[loc.v][loc.h] = cell }
-            return new Grid(copy, start, goal)
-        }
-
         Cell getAt(Location val) {
             if(inRange(val))
                 return theMaze[val.v][val.h]
@@ -145,15 +137,21 @@ abstract class Maze {
         }
 
         Location whereIs(Cell c) {
+            Collection<Location> list = whereAreAll(c)
+            return list ? list[0] : NOWHERE
+        }
+
+        Collection<Location> whereAreAll(Cell c) {
+            List<Location> ret = []
             for(int v = 0; v < vertical; ++v) {
                 for(int h = 0; h < horizontal; ++h) {
                     if(theMaze[v][h] == c) {
-                        return loc(v, h)
+                        ret << loc(v, h)
                     }
                 }
             }
 
-            return NOWHERE
+            return ret;
         }
 
         Collection<Cell> matchingCells(Predicate<Cell> p) {
@@ -171,6 +169,10 @@ abstract class Maze {
 
         int getVertical() { return theMaze.length }
         int getHorizontal() { return theMaze[0].length }
+
+        @Override Cell at(int v, int h) {
+            return theMaze[v][h]
+        }
     }
 
     static class Sparse extends Maze {
@@ -196,10 +198,6 @@ abstract class Maze {
                     if(!cell.permanentWall) theMaze[loc(v,h)] = cell } }
         }
 
-        Sparse transform(Map<Location,Cell> replace, Location start, Location goal) {
-            return new Sparse(theMaze + replace, start, goal, vertical, horizontal)
-        }
-        
         Cell getAt(Location val) {
             if(inRange(val))
                 return theMaze[val] ?: PERMANENT_WALL
@@ -216,6 +214,10 @@ abstract class Maze {
 
         Location whereIs(Cell c) {
             return theMaze.findResult { location, cell -> (cell == c) ? location: null } ?: NOWHERE
+        }
+
+        Collection<Location> whereAreAll(Cell c) {
+            return theMaze.findResults { location, cell -> (cell == c) ? location: null }
         }
         
         Collection<Cell> matchingCells(Predicate<Cell> p) {
