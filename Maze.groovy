@@ -7,8 +7,6 @@ import static Cell.*
 @CompileStatic
 abstract class Maze {
 
-    static Location newLoc(int vertical, int horizontal) { return new Location(vertical, horizontal); }
-
     abstract int getVertical()
     abstract int getHorizontal()
     abstract Location whereIs(Cell c);
@@ -18,7 +16,35 @@ abstract class Maze {
     abstract boolean wallAt(Location loc);
     abstract Location getStart()
     abstract Location getGoal()
-
+    abstract Maze copy()
+    protected abstract void replace(Location loc, Cell c)
+    
+    Maze deadEndFill() {
+        Maze ret = copy()
+        int state = 0
+        while(state != 2) {
+            state = 2
+            for(int v = 0; v < vertical; ++v) {
+                for(int h = 0; h < horizontal; ++h) {
+                    Location loc = loc(v, h)
+                    Cell c = ret[loc]
+                    if(c.empty) {
+                        int sum = ret[loc.up()].permanentWall ? 1 : 0
+                        sum += ret[loc.down()].permanentWall ? 1 : 0
+                        sum += ret[loc.left()].permanentWall ? 1 : 0
+                        sum += ret[loc.right()].permanentWall ? 1 : 0
+                        if(sum >= 3) {
+                            state = 1
+                            ret.replace(loc, Cell.PERMANENT_WALL)
+                        }
+                    }
+                }
+            }    
+        }
+        
+        return ret
+    }
+    
     Cell at(int v, int h) {
         return getAt(new Location(v, h))
     }
@@ -125,6 +151,19 @@ abstract class Maze {
                     theMaze[v][h] = cell } }
         }
 
+        Grid copy() {
+            Cell[][] newMaze = new Cell[theMaze.length][theMaze[0].length]
+            for(int v = 0; v < theMaze.length; ++v)
+                for(int h = 0; h < theMaze[v].length; ++h)
+                    newMaze[v][h] = theMaze[v][h]
+
+            return new Grid(newMaze, start, goal)
+        }
+
+        protected void replace(Location val, Cell c) {
+            theMaze[val.v][val.h] = c
+        }
+
         Cell getAt(Location val) {
             if(inRange(val))
                 return theMaze[val.v][val.h]
@@ -198,11 +237,21 @@ abstract class Maze {
                     if(!cell.permanentWall) theMaze[loc(v,h)] = cell } }
         }
 
+        Sparse copy() {
+            Map<Location,Cell> newMaze = new HashMap<>(theMaze)
+            return new Sparse(theMaze, start, goal, vertical, horizontal)
+        }
+
         Cell getAt(Location val) {
             if(inRange(val))
                 return theMaze[val] ?: PERMANENT_WALL
             else
                 return NONE
+        }
+
+        protected void replace(Location val, Cell c) {
+            if(c.empty) theMaze.remove(val)
+            else theMaze[val] = c
         }
 
         boolean wallAt(Location val) {

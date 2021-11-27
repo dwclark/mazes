@@ -31,4 +31,5 @@ public class Cell {
     public boolean isPassable() { return PASSABLE.contains(id) }
     public boolean isStart() { return id == '@' }
     public boolean isDoor() { return DOORS.contains(id) }
+    public boolean isEmpty() { return id == '.' }
 }
