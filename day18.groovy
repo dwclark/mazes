@@ -2,42 +2,9 @@ import static Maze.*
 import static Storage.*
 import static Search.*
 import static Location.*
+import static KeyInfo.*
 import groovy.transform.CompileStatic
 import java.util.function.Predicate
-
-@CompileStatic
-class KeyInfo {
-    static final int KEY_FLOOR = 'a' as char as int
-    static final int DOOR_FLOOR = 'A' as char as int
-    
-    static int toKey(Cell cell) {
-        return 1 << ((cell.id[0] as char as int) - KEY_FLOOR);
-    }
-
-    static boolean canOpen(int keys, Cell door) {
-        return (keys & (1 << ((door.id as char as int) - DOOR_FLOOR))) != 0
-    }
-
-    static int fullMatch(Maze maze) {
-        int tmp = 0
-        for(Cell cell in maze.matchingCells({ it.goal })) {
-            tmp |= toKey(cell)
-        }
-
-        return tmp
-    }
-
-    static String toString(int keys) {
-        String str = ""
-        ('a'..'z').eachWithIndex { String c, int i ->
-            if(((1 << i) & keys) != 0) {
-                str += c
-            }
-        }
-
-        return str;
-    }
-}
 
 @CompileStatic
 class Part1 implements Successors<Long>, Predicate<Long> {
@@ -47,31 +14,12 @@ class Part1 implements Successors<Long>, Predicate<Long> {
 
     public Part1(Maze maze) {
         this.maze = maze
-        this.toMatch = KeyInfo.fullMatch(maze)
-    }
-
-    static Long encode(int v, int h, int keys) {
-        long ret = (long) v
-        ret |= ((long) h << 16)
-        ret |= ((long) keys << 32)
-        return ret
-    }
-
-    static int decodeVertical(long val) {
-        return (int) (val & 0xFFFF)
-    }
-
-    static int decodeHorizontal(long val) {
-        return (int) ((val >> 16) & 0xFFFF)
-    }
-
-    static int decodeKeys(long val) {
-        return (val >> 32) & 0xFFFF_FFFF
+        this.toMatch = fullMatch(maze)
     }
 
     public void addIfPossible(List<Long> list, int vertical, int horizontal, int keys) {
         Cell cell = maze.at(vertical, horizontal)
-        if(cell.passable || (cell.door && KeyInfo.canOpen(keys, cell)))
+        if(cell.passable || (cell.door && canOpen(keys, cell)))
             list.add(encode(vertical, horizontal, keys))
     }
     
@@ -81,7 +29,7 @@ class Part1 implements Successors<Long>, Predicate<Long> {
         int v = decodeVertical(val)
         int h = decodeHorizontal(val)
         Cell cell = maze.at(v, h)
-        int keys = decodeKeys(val) | (cell.goal ? KeyInfo.toKey(cell) : 0)
+        int keys = decodeKeys(val) | (cell.goal ? toKey(cell) : 0)
         addIfPossible(ret, v+1, h, keys)
         addIfPossible(ret, v-1, h, keys)
         addIfPossible(ret, v, h-1, keys)
@@ -96,7 +44,7 @@ class Part1 implements Successors<Long>, Predicate<Long> {
         int h = decodeHorizontal(val)
         Cell cell = maze.at(v, h)
         if(cell.goal) {
-            int newKey = keys | KeyInfo.toKey(cell)
+            int newKey = keys | toKey(cell)
             return newKey == toMatch
         }
         
@@ -105,10 +53,10 @@ class Part1 implements Successors<Long>, Predicate<Long> {
 }
 
 static int solution(String str) {
-    def m = parse(str.split('\n') as List, SPARSE)
+    def m = parse(str.split('\n') as List, SPARSE).deadEndFill()
     m = m.deadEndFill()
     def location = m.whereIs(Cell.parse('@'))
-    def start = Part1.encode(location.v, location.h, 0)
+    def start = encode(location.v, location.h, 0)
     def successors = new Part1(m)
     def solution = breadthFirst(start, successors, successors)
     return solution.toPath().size() - 1
@@ -167,20 +115,20 @@ String five = """
 
 assert solution(five) == 81
 
-/*Profile.printTime {
+Profile.printTime {
     assert solution(new File("18").text) == 5068
-}*/
-
+}
+/*
 @CompileStatic
 class StateP2 {
     final int keys
-    final byte[] positions
+    final long positions
 
-    public static byte[] initLocations(List<Location> initial) {
-        byte[] ret = new byte[8]
+    public static long initLocations(List<Location> initial) {
+        long ret = 0L
         initial.eachWithIndex { Location loc, int idx ->
-            ret[2*idx] = (byte) loc.v
-            ret[2*idx + 1] = (byte) loc.h
+            ret |= (((long) loc.v) << (8 * (2*idx)))
+            ret |= (((long) loc.h) << (8 * (2*idx + 1)))
         }
 
         return ret
@@ -190,32 +138,41 @@ class StateP2 {
         this(0, initLocations(initial))
     }
 
-    StateP2(int keys, byte[] positions) {
+    StateP2(int keys, long positions) {
         this.keys = keys
         this.positions = positions;
     }
 
-    int vertical(int robot) { return (int) positions[robot*2] }
-    int horizontal(int robot) { return (int) positions[robot*2 + 1] }
+    int vertical(int robot) { return 0xFF & (positions >>> (8 * (2*robot))) }
+    int horizontal(int robot) { return 0xFF & (positions >>> (8 * (2*robot + 1))) }
 
     StateP2 newState(int keys, int robot, int v, int h) {
-        byte[] newPositions = new byte[8]
-        System.arraycopy(positions, 0, newPositions, 0, 8)
-        newPositions[robot*2] = (byte) v
-        newPositions[robot*2 + 1] = (byte) h
+        long newPositions = 0L
+        if(robot == 0) {
+            newPositions = (0xFFFF_FFFF_FFFF_0000L & positions) | (0xFFL & (long) v) | ((0xFFL & (long) h) << 8)
+        }
+        else if(robot == 1) {
+            newPositions = (0xFFFF_FFFF_0000_FFFFL & positions) | ((0xFFL & (long) v) << 16) | ((0xFFL & (long) h) << 24)
+        }
+        else if(robot == 2) {
+            newPositions = (0xFFFF_0000_FFFF_FFFFL & positions) | ((0xFFL & (long) v) << 32) | ((0xFFL & (long) h) << 40)
+        }
+        else {
+            newPositions = (0x0000_FFFF_FFFF_FFFFL & positions) | ((0xFFL & (long) v) << 48) | ((0xFFL & (long) h) << 56)
+        }
+
         return new StateP2(keys, newPositions)
     }
 
     @Override int hashCode() {
-        return 31 * keys + Arrays.hashCode(positions)
+        return 31 * keys + Long.hashCode(positions)
     }
     
     @Override boolean equals(Object o) {
         if(!(o instanceof StateP2)) return false
         
         StateP2 rhs = (StateP2) o
-        return ((keys == rhs.keys) &&
-                Arrays.equals(positions, rhs.positions))
+        return keys == rhs.keys && positions == rhs.positions
     }
 }
 
@@ -333,3 +290,5 @@ String four_2 = """
 println solutionp2(four_2)
 
 println solutionp2(new File("18_2").text)
+
+*/

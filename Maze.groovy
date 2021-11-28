@@ -28,7 +28,7 @@ abstract class Maze {
                 for(int h = 0; h < horizontal; ++h) {
                     Location loc = loc(v, h)
                     Cell c = ret[loc]
-                    if(c.empty) {
+                    if(c.empty || c.door) {
                         int sum = ret[loc.up()].permanentWall ? 1 : 0
                         sum += ret[loc.down()].permanentWall ? 1 : 0
                         sum += ret[loc.left()].permanentWall ? 1 : 0
@@ -172,7 +172,7 @@ abstract class Maze {
         }
 
         boolean wallAt(Location val) {
-            return theMaze[val.v][val.h].wall
+            return theMaze[val.v][val.h].permanentWall
         }
 
         Location whereIs(Cell c) {
@@ -256,7 +256,7 @@ abstract class Maze {
 
         boolean wallAt(Location val) {
             if(inRange(val))
-                return (theMaze[val] ?: PERMANENT_WALL).wall
+                return (theMaze[val] ?: PERMANENT_WALL).permanentWall
             else
                 return false
         }
