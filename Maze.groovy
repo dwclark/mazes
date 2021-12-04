@@ -12,6 +12,7 @@ abstract class Maze {
     abstract Location whereIs(Cell c);
     abstract Collection<Location> whereAreAll(Cell c);
     abstract Collection<Cell> matchingCells(Predicate<Cell> p)
+    abstract Collection<Location> matchingLocations(Predicate<Location> p)
     abstract Cell getAt(Location loc);
     abstract boolean wallAt(Location loc);
     abstract Location getStart()
@@ -206,6 +207,20 @@ abstract class Maze {
             return ret
         }
 
+        Collection<Location> matchingLocations(Predicate<Location> p) {
+            List<Location> ret = []
+            for(int v = 0; v < vertical; ++v) {
+                for(int h = 0; h < horizontal; ++h) {
+                    Location val = loc(v, h)
+                    if(p.test(val))
+                        ret << val
+                }
+            }
+
+            return ret
+        }
+
+
         int getVertical() { return theMaze.length }
         int getHorizontal() { return theMaze[0].length }
 
@@ -271,6 +286,10 @@ abstract class Maze {
         
         Collection<Cell> matchingCells(Predicate<Cell> p) {
             return theMaze.values().findAll { p.test(it) }
+        }
+
+        Collection<Location> matchingLocations(Predicate<Location> p) {
+            return theMaze.keySet().findAll { p.test(it) }
         }
     }
 }

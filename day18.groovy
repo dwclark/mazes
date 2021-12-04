@@ -62,7 +62,7 @@ static int solution(String str) {
     return solution.toPath().size() - 1
 }
 
-String one = """
+def one = """
 #########
 #b.A.@.a#
 #########
@@ -70,7 +70,7 @@ String one = """
 
 //assert solution(one) == 8
 
-String two = """
+def two = """
 ########################
 #f.D.E.e.C.b.A.@.a.B.c.#
 ######################.#
@@ -80,7 +80,7 @@ String two = """
 
 //assert solution(two) == 86
 
-String three = """
+def three = """
 ########################
 #...............b.C.D.f#
 #.######################
@@ -90,7 +90,7 @@ String three = """
 
 //assert solution(three) == 132
 
-String four ="""
+def four ="""
 #################
 #i.G..c...e..H.p#
 ########.########
@@ -104,7 +104,7 @@ String four ="""
 
 //assert solution(four) == 136
 
-String five = """
+def five = """
 ########################
 #@..............ac.GI.b#
 ###d#e#f################
