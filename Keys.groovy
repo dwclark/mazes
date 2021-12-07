@@ -64,11 +64,6 @@ class Keys {
         return (bit == (bit & keys)) ? this : new Keys(keys | bit);
     }
 
-    public boolean canOpen(Cell cell) {
-        char c = cell.id as char
-        return (toBit(c) & keys) != 0
-    }
-
     public static Keys forDoor(char c) {
         assert c in DOOR_RANGE
         return new Keys(toBit(Character.toLowerCase(c)))
@@ -109,24 +104,20 @@ class Keys {
     @Override
     public int hashCode() { return keys }
 
-    public boolean subsetOf(Keys rhs) {
-        return (keys & rhs.keys) == keys
-    }
-
     public boolean properSubsetOf(Keys rhs) {
-        return subsetOf(rhs) && keys != rhs.keys
+        return ((keys & rhs.keys) != 0) && keys != rhs.keys
     }
 
-    public boolean supersetOf(Keys rhs) {
-        return (keys & rhs.keys) == rhs.keys
-    }
-
-    public boolean has(Cell cell) {
+    public boolean contains(Cell cell) {
         assert cell.goal
-        return has(cell.id)
+        return contains(cell.id)
     }
 
-    public boolean has(char c) {
+    public boolean contains(char c) {
         return (toBit(c) & keys) != 0
+    }
+
+    public boolean contains(Keys rhs) {
+        return (keys & rhs.keys) == rhs.keys
     }
 }

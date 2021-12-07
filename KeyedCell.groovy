@@ -6,7 +6,7 @@ class KeyedCell {
     Cell cell
     Keys keys
 
-    public boolean available(Keys required) {
-        return keys.subsetOf(required)
+    public boolean available(Keys keysInPossesion) {
+        return keysInPossesion.contains(keys)
     }
 }

@@ -48,26 +48,26 @@ class d18 {
     private Maze _maze
     private Keys _allKeys
 
-    public void setMaze(final Maze val) {
+    void setMaze(final Maze val) {
         _maze = val
         _allKeys = Keys.forMaze(_maze)
         edgeCache.clear()
     }
 
-    public Maze getMaze() {
+    Maze getMaze() {
         return _maze
     }
 
-    public Keys getAllKeys() {
+    Keys getAllKeys() {
         return _allKeys
     }
 
-    public void allKeyPaths(Location start, Predicate<Path<KeyedCell>> whenFound) {
+    void allKeyPaths(Location start, Predicate<Path<KeyedCell>> shouldStop) {
         Set<Location> visited = new HashSet<>()
         def inner
-        inner = { Location location, Cell current, int pathLength, Keys required ->
+        inner = { Location location, Cell current, int pathLength, Keys requiredKeys ->
             if(current.goal && pathLength != 0) {
-                if(whenFound(new Path<>(new KeyedCell(current, required), pathLength))) {
+                if(shouldStop(new Path<>(new KeyedCell(current, requiredKeys), pathLength))) {
                     return
                 }
             }
@@ -76,8 +76,8 @@ class d18 {
             location.eachNeighbor { Location neighbor ->
                 Cell toVisit = maze[neighbor]
                 if(!toVisit.permanentWall && !visited.contains(neighbor)) {
-                    Keys nextKeys = required + (toVisit.door ? Keys.forDoor(toVisit) : required)
-                    inner(neighbor, toVisit, pathLength + 1, nextKeys)
+                    Keys nextRequiredKeys = requiredKeys + (toVisit.door ? Keys.forDoor(toVisit) : requiredKeys)
+                    inner(neighbor, toVisit, pathLength + 1, nextRequiredKeys)
                 }
             }
 
@@ -87,7 +87,7 @@ class d18 {
         inner(start, maze[start], 0, Keys.NONE)
     }
 
-    public void displayPaths(Location start) {
+    void displayPaths(Location start) {
         Cell cell = maze[start]
         allKeyPaths(start) { Path<KeyedCell> p ->
             println "From ${cell} -> ${p.destination.cell} is ${p.length}; requires: ${p.destination.keys}"
@@ -97,17 +97,16 @@ class d18 {
 
     private final Map<Cell,Collection<Path<KeyedCell>>> edgeCache = new HashMap<>();
 
-    public Collection<Path<KeyedCell>> edgesFrom(Cell cell, Keys currentKeys) {
+    Collection<Path<KeyedCell>> edgesFrom(Cell cell, Keys currentKeys) {
         return edgeCache.computeIfAbsent(cell) {
             Map<Cell,Path<KeyedCell>> foundPaths = new HashMap<>(32)
             Location location = maze.whereIs(cell)
             allKeyPaths(location) { Path<KeyedCell> path ->
-                Cell target = path.destination.cell
-                if(!currentKeys.has(target)) {
-                    def existing = foundPaths[target]
+                if(!currentKeys.contains(path.destination.cell)) {
+                    def existing = foundPaths[path.destination.cell]
                     if(!existing || path.length < existing.length ||
                        path.destination.keys.properSubsetOf(existing.destination.keys)) {
-                        foundPaths[target] = path
+                        foundPaths[path.destination.cell] = path
                     }
 
                     return true
@@ -120,11 +119,11 @@ class d18 {
             return foundPaths.values()
         }
     }
-
+    
     void eachRelevantEdge(KeyedCells kcells, Closure toCall) {
         kcells.eachCell { int idx, Cell cell ->
             edgesFrom(cell, kcells.keys).each { Path<KeyedCell> edge ->
-                if(edge.destination.available(kcells.keys) && !kcells.keys.has(edge.destination.cell)) {
+                if(edge.destination.available(kcells.keys) && !kcells.keys.contains(edge.destination.cell)) {
                     toCall.call(idx, edge)
                 }
             }
@@ -144,7 +143,7 @@ class d18 {
 
             KeyedCells kcells = current.destination
             if(kcells.keys == allKeys) {
-                return current.length
+                //return current.length
             }
 
             settled.add(kcells)
@@ -158,5 +157,11 @@ class d18 {
                 }
             }
         }
+    }
+
+    static void main(String[] args) {
+        def d = new d18()
+        d.maze = Maze.parse(d.four.split("\n") as List, Storage.SPARSE).deadEndFill()
+        d.minimumPath()
     }
 }
